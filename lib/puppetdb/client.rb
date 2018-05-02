@@ -11,8 +11,8 @@ module PuppetDB
 
   class FixSSLConnectionAdapter < HTTParty::ConnectionAdapter
     def attach_ssl_certificates(http, options)
-      http.cert    = OpenSSL::X509::Certificate.new(File.read(options[:pem]['cert']))
-      http.key     = OpenSSL::PKey::RSA.new(File.read(options[:pem]['key']))
+      http.cert    = OpenSSL::X509::Certificate.new(File.read(options[:pem]['cert'])) unless options[:pem]['cert'].nil?
+      http.key     = OpenSSL::PKey::RSA.new(File.read(options[:pem]['key'])) unless options[:pem]['cert'].nil?
       http.ca_file = options[:pem]['ca_file']
       http.verify_mode = OpenSSL::SSL::VERIFY_PEER
     end
@@ -21,6 +21,7 @@ module PuppetDB
   class Client
     include HTTParty
     attr_reader :use_ssl
+    attr_reader :token
     attr_writer :logger
 
     def hash_get(hash, key)
@@ -51,6 +52,7 @@ module PuppetDB
 
       server = hash_get(settings, 'server')
       pem    = hash_get(settings, 'pem')
+      token  = hash_get(settings, 'token')
 
       scheme = URI.parse(server).scheme
 
@@ -61,13 +63,18 @@ module PuppetDB
 
       @use_ssl = scheme == 'https'
       if @use_ssl && pem
-        unless hash_includes?(pem, 'key', 'cert', 'ca_file')
+        unless hash_includes?(pem, 'ca_file')
           error_msg = 'Configuration error: https:// specified but pem is missing or incomplete. It requires cert, key, and ca_file.'
+          raise error_msg
+        end
+        unless token || hash_includes?(pem, 'key', 'cert')
+          error_msg = 'Configuration error: https:// specified but missing RBAC token or full pem specification (requires cert and key)'
           raise error_msg
         end
 
         self.class.default_options = { pem: pem }
         self.class.connection_adapter(FixSSLConnectionAdapter)
+        self.class.headers('X-Authentication' => token) if token
       end
 
       self.class.base_uri(server)

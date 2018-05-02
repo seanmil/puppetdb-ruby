@@ -122,6 +122,41 @@ describe 'SSL support' do
 
       -> { PuppetDB::Client.new(settings) }.should raise_error
     end
+
+    it 'ignores token when not using https' do
+      settings = {
+        'server' => 'http://localhost:8081',
+        'token' => 'atoken'
+      }
+
+      r = PuppetDB::Client.new(settings)
+      expect(r.class.headers).not_to include({'Authentication' => 'atoken'})
+    end
+
+    it 'allows token' do
+      settings = {
+        'server' => 'https://localhost:8081',
+        'pem'    => {
+          'ca_file' => 'bar'
+        },
+        'token' => 'atoken'
+      }
+
+      r = PuppetDB::Client.new(settings)
+      expect(r.class.headers).to include({'X-Authentication' => 'atoken'})
+    end
+
+    it 'does not tolerate lack of ca_file with token' do
+      settings = {
+        'server' => 'https://localhost:8081',
+        'pem'    => {
+        },
+        'token' => 'atoken'
+      }
+
+      -> { PuppetDB::Client.new(settings) }.should raise_error
+    end
+
   end
 
   describe 'when a protocol is missing from config file' do
