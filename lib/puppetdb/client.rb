@@ -9,6 +9,15 @@ module PuppetDB
     end
   end
 
+  class AccessDenied < APIError
+  end
+
+  class Forbidden < AccessDenied
+  end
+
+  class Unauthorized < AccessDenied
+  end
+
   class FixSSLConnectionAdapter < HTTParty::ConnectionAdapter
     def attach_ssl_certificates(http, options)
       http.cert    = OpenSSL::X509::Certificate.new(File.read(options[:pem]['cert'])) unless options[:pem]['cert'].nil?
@@ -81,6 +90,8 @@ module PuppetDB
     end
 
     def raise_if_error(response)
+      raise Unauthorized, response if response.code == 401
+      raise Forbidden, response if response.code == 403
       raise APIError, response if response.code.to_s =~ %r{^[4|5]}
     end
 
